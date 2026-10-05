@@ -1,0 +1,15 @@
+{
+  "name": "quizflow-pro",
+  "version": "1.0.0",
+  "description": "A modern, responsive, feature-rich interactive Quiz Application ready for deployment.",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve . -p 3000"
+  },
+  "keywords": ["quiz", "game", "trivia", "interactive", "javascript", "responsive"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}
