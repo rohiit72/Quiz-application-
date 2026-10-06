@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   LEADERBOARD: 'quizflow_leaderboard_v1',
   STATS: 'quizflow_stats_v1',
   CUSTOM_QUIZZES: 'quizflow_custom_quizzes_v1',
+  ROOMS: 'quizflow_rooms_v1',
   SETTINGS: 'quizflow_settings_v1'
 };
 
@@ -39,6 +40,39 @@ class StorageManager {
 
     if (!localStorage.getItem(STORAGE_KEYS.CUSTOM_QUIZZES)) {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_QUIZZES, JSON.stringify([]));
+    }
+
+    if (!localStorage.getItem(STORAGE_KEYS.ROOMS)) {
+      const sampleRooms = [
+        {
+          code: 'QZ-DEMO',
+          title: 'Mixed Knowledge Gauntlet',
+          category: 'all',
+          difficulty: 'all',
+          count: 10,
+          hostName: 'QuizMaster Pro',
+          createdAt: Date.now() - 3600000
+        },
+        {
+          code: 'WEB-101',
+          title: 'Web Dev & JavaScript Sprint',
+          category: 'web_dev',
+          difficulty: 'medium',
+          count: 10,
+          hostName: 'Alex Dev',
+          createdAt: Date.now() - 7200000
+        },
+        {
+          code: 'TECH-202',
+          title: 'Science & Innovation Quest',
+          category: 'science_tech',
+          difficulty: 'medium',
+          count: 10,
+          hostName: 'Sophia Sci',
+          createdAt: Date.now() - 10800000
+        }
+      ];
+      localStorage.setItem(STORAGE_KEYS.ROOMS, JSON.stringify(sampleRooms));
     }
   }
 
@@ -129,6 +163,51 @@ class StorageManager {
     quizzes = quizzes.filter(q => q.id !== quizId);
     localStorage.setItem(STORAGE_KEYS.CUSTOM_QUIZZES, JSON.stringify(quizzes));
     return quizzes;
+  }
+
+  // Quiz Rooms (QR Code & Join Code sessions)
+  getRooms() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.ROOMS)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  getRoom(code) {
+    if (!code) return null;
+    const cleanCode = code.trim().toUpperCase();
+    const rooms = this.getRooms();
+    return rooms.find(r => r.code.toUpperCase() === cleanCode) || null;
+  }
+
+  saveRoom(room) {
+    const rooms = this.getRooms();
+    const cleanCode = room.code.trim().toUpperCase();
+    const existingIndex = rooms.findIndex(r => r.code.toUpperCase() === cleanCode);
+    const roomRecord = {
+      ...room,
+      code: cleanCode,
+      updatedAt: Date.now()
+    };
+
+    if (existingIndex >= 0) {
+      rooms[existingIndex] = roomRecord;
+    } else {
+      rooms.unshift(roomRecord);
+    }
+
+    // Keep up to 30 active rooms
+    const trimmed = rooms.slice(0, 30);
+    localStorage.setItem(STORAGE_KEYS.ROOMS, JSON.stringify(trimmed));
+    return roomRecord;
+  }
+
+  deleteRoom(code) {
+    const cleanCode = code.trim().toUpperCase();
+    let rooms = this.getRooms().filter(r => r.code.toUpperCase() !== cleanCode);
+    localStorage.setItem(STORAGE_KEYS.ROOMS, JSON.stringify(rooms));
+    return rooms;
   }
 
   // Settings

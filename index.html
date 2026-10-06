@@ -56,6 +56,11 @@
         <button class="btn btn-secondary btn-sm" id="btn-open-creator" aria-label="Create Custom Quiz">
           <span>✨</span> Create Quiz
         </button>
+
+        <!-- Join Quiz with Code or QR Button -->
+        <button class="btn btn-primary btn-sm btn-join-nav" id="btn-open-join" aria-label="Join Quiz via Code or QR">
+          <span>📱</span> Join Quiz
+        </button>
       </div>
     </div>
   </header>
@@ -86,6 +91,26 @@
             <input type="text" id="player-name-input" class="player-name-input" placeholder="Player Name" maxlength="20" value="Challenger">
           </div>
         </div>
+
+        <!-- Quick Join Bar with QR Scan & Code Entry -->
+        <div class="quick-join-bar">
+          <div class="quick-join-left">
+            <span class="quick-join-badge-icon">📱</span>
+            <div class="quick-join-info">
+              <span class="quick-join-title">Have a Quiz Code or QR?</span>
+              <span class="quick-join-sub">Join a live room or friend's challenge instantly</span>
+            </div>
+          </div>
+          <div class="quick-join-actions">
+            <div class="quick-code-input-wrap">
+              <input type="text" id="home-quick-code-input" class="quick-code-input" placeholder="Code (e.g. QZ-DEMO)" maxlength="12" spellcheck="false" autocomplete="off">
+              <button class="btn btn-primary btn-sm" id="btn-home-quick-join">Join</button>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-home-quick-scan" title="Scan QR Code with Camera">
+              <span>📷</span> Scan QR
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Game Configuration Settings -->
@@ -112,6 +137,10 @@
 
         <button class="btn btn-primary btn-lg" id="btn-start-quiz">
           <span>🚀</span> <span id="btn-start-label">Start Assessment</span>
+        </button>
+
+        <button class="btn btn-outline btn-lg" id="btn-host-quiz" title="Host this quiz and generate QR Code & Room Code">
+          <span>📡</span> Host & Share
         </button>
       </div>
 
@@ -309,6 +338,9 @@
           <button class="btn btn-outline btn-lg" id="btn-share-score">
             <span>📤</span> Share Result
           </button>
+          <button class="btn btn-outline btn-lg" id="btn-results-host">
+            <span>📡</span> Host & Challenge (QR & Code)
+          </button>
         </div>
 
         <!-- Detailed Review Accordion Section -->
@@ -429,6 +461,197 @@
     </div>
   </div>
 
+  <!-- ==========================================
+       MODAL 4: JOIN QUIZ (CODE & QR SCANNER)
+       ========================================== -->
+  <div class="modal-overlay" id="modal-join-quiz" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-join-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>📱</span> Join Assessment Room
+        </div>
+        <button class="btn-icon modal-close" data-close="modal-join-quiz" id="btn-close-join-modal" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Join Mode Tabs -->
+        <div class="segmented-control modal-tabs" id="join-mode-tabs">
+          <button class="segment-btn active" id="tab-btn-code" data-tab="code">
+            <span>🔢</span> Enter Join Code
+          </button>
+          <button class="segment-btn" id="tab-btn-qr" data-tab="qr">
+            <span>📷</span> Scan QR Code
+          </button>
+        </div>
+
+        <!-- TAB 1: ENTER CODE PANEL -->
+        <div class="join-tab-panel active" id="panel-join-code">
+          <div class="form-group" style="margin-top: 1.25rem;">
+            <label class="form-label" for="join-player-name">Your Player Name</label>
+            <div class="player-input-wrap">
+              <span class="avatar-badge">👤</span>
+              <input type="text" id="join-player-name" class="form-control" placeholder="Player Name" maxlength="20" value="Challenger">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="join-code-input">Quiz / Room PIN Code</label>
+            <div class="big-code-wrap">
+              <input type="text" id="join-code-input" class="big-code-input" placeholder="QZ-XXXX" maxlength="14" spellcheck="false" autocomplete="off">
+              <button class="btn btn-primary" id="btn-submit-join-code">
+                Verify & Join ➔
+              </button>
+            </div>
+            <span class="input-hint">Enter the 6-character code shown on host's screen (e.g. QZ-DEMO)</span>
+          </div>
+
+          <!-- Quick Test Rooms -->
+          <div class="quick-demo-section">
+            <span class="quick-demo-lbl">⚡ Quick Test Rooms:</span>
+            <div class="quick-demo-chips" id="quick-demo-chips">
+              <button type="button" class="chip-btn" data-code="QZ-DEMO">🌟 QZ-DEMO (Mixed)</button>
+              <button type="button" class="chip-btn" data-code="WEB-101">💻 WEB-101 (Web Dev)</button>
+              <button type="button" class="chip-btn" data-code="TECH-202">🔬 TECH-202 (Tech)</button>
+              <button type="button" class="chip-btn" data-code="GEO-303">🌍 GEO-303 (Geography)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: LIVE CAMERA QR SCANNER PANEL -->
+        <div class="join-tab-panel" id="panel-join-qr" style="display: none;">
+          <div class="qr-scanner-wrapper">
+            <div class="qr-scanner-viewport" id="qr-scanner-viewport">
+              <video id="qr-scanner-video" playsinline muted></video>
+              <canvas id="qr-scanner-canvas" style="display: none;"></canvas>
+              
+              <!-- Viewfinder Overlay & HUD Corners -->
+              <div class="scanner-hud">
+                <div class="hud-corner top-left"></div>
+                <div class="hud-corner top-right"></div>
+                <div class="hud-corner bottom-left"></div>
+                <div class="hud-corner bottom-right"></div>
+                <div class="scanner-laser" id="scanner-laser"></div>
+              </div>
+
+              <!-- Scanner Status Message -->
+              <div class="scanner-status-pill" id="scanner-status-pill">
+                <span>🎯</span> Point camera at Host QR code
+              </div>
+            </div>
+
+            <!-- Scanner Controls -->
+            <div class="scanner-toolbar">
+              <button class="btn btn-outline btn-sm" id="btn-toggle-camera" title="Switch camera (rear / front)">
+                <span>🔄</span> Flip Camera
+              </button>
+              <button class="btn btn-outline btn-sm" id="btn-upload-qr" title="Upload QR image file">
+                <span>📁</span> Upload QR Image
+              </button>
+              <input type="file" id="qr-file-input" accept="image/*" style="display: none;">
+            </div>
+
+            <div class="scanner-fallback-message" id="scanner-camera-error" style="display: none;">
+              <span>⚠️</span> Camera access is unavailable or blocked in this browser. You can upload a QR image or enter code manually above.
+            </div>
+          </div>
+        </div>
+
+        <!-- Join Preview / Confirmation Stage (Hidden until room validated) -->
+        <div class="join-preview-card" id="join-preview-card" style="display: none;">
+          <div class="preview-badge-status">
+            <span>✅</span> Quiz Room Validated!
+          </div>
+          <h3 class="preview-quiz-title" id="preview-room-title">Assessment Challenge</h3>
+          <div class="preview-meta-row">
+            <span class="preview-chip" id="preview-room-category">💻 Web Dev</span>
+            <span class="preview-chip" id="preview-room-diff">Medium</span>
+            <span class="preview-chip" id="preview-room-count">10 Questions</span>
+            <span class="preview-chip" id="preview-room-host">Host: Alex</span>
+          </div>
+          <div class="preview-action-row">
+            <button class="btn btn-primary btn-lg" id="btn-confirm-start-quiz">
+              🚀 Enter Quiz & Start
+            </button>
+            <button class="btn btn-outline" id="btn-cancel-preview">Back</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close" data-close="modal-join-quiz">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       MODAL 5: HOST & SHARE QUIZ (QR & ROOM CODE)
+       ========================================== -->
+  <div class="modal-overlay" id="modal-host-quiz" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-host-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>📡</span> Host Assessment & Invite Players
+        </div>
+        <button class="btn-icon modal-close" data-close="modal-host-quiz" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Host Top Banner -->
+        <div class="host-quiz-summary">
+          <div>
+            <span class="host-pill-badge" id="host-room-badge">LIVE ROOM ACTIVE</span>
+            <h3 class="host-room-title" id="host-room-title">Mixed Knowledge Gauntlet</h3>
+            <p class="host-room-meta" id="host-room-meta">10 Questions • All Difficulty Levels • Host: Challenger</p>
+          </div>
+        </div>
+
+        <div class="host-display-grid">
+          <!-- Left: Crisp QR Code Display -->
+          <div class="host-qr-card">
+            <div class="qr-canvas-holder" id="host-qr-holder">
+              <!-- Rendered SVG QR code inserted dynamically -->
+            </div>
+            <div class="qr-instruction">
+              <span>📷</span> Scan with any phone camera to join instantly
+            </div>
+          </div>
+
+          <!-- Right: Room Code & Link -->
+          <div class="host-details-card">
+            <div class="code-hero-box">
+              <span class="code-hero-lbl">ROOM JOIN CODE</span>
+              <div class="code-hero-val" id="host-code-display">QZ-8492</div>
+              <button class="btn btn-secondary btn-sm" id="btn-copy-room-code">
+                <span>📋</span> Copy Code
+              </button>
+            </div>
+
+            <div class="link-share-box">
+              <label class="form-label">Direct Join Link</label>
+              <div class="input-with-button">
+                <input type="text" id="host-share-url-input" class="form-control" readonly>
+                <button class="btn btn-outline btn-sm" id="btn-copy-room-link">Copy</button>
+              </div>
+            </div>
+
+            <div class="host-card-actions">
+              <button class="btn btn-outline" id="btn-download-invite-card">
+                <span>📥</span> Download Invite Card (PNG)
+              </button>
+              <button class="btn btn-primary btn-lg" id="btn-host-launch-quiz">
+                <span>🚀</span> Launch Quiz Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close" data-close="modal-host-quiz">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification System -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -436,6 +659,9 @@
   <script src="js/audio.js"></script>
   <script src="js/confetti.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/vendor/qrcode.min.js"></script>
+  <script src="js/vendor/jsqr.min.js"></script>
+  <script src="js/qr-manager.js"></script>
   <script src="js/data/questions.js"></script>
   <script src="js/app.js"></script>
 </body>

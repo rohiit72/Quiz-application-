@@ -207,6 +207,56 @@ class SoundManager {
       osc.stop(now + n.t + n.d + 0.05);
     });
   }
+
+  // Futuristic QR Code Scan chime
+  playScanSuccess() {
+    if (!this.enabled || !this.ctx) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1760, now + 0.12);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.23);
+  }
+
+  // Room Join welcoming chime
+  playJoinRoom() {
+    if (!this.enabled || !this.ctx) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    const chords = [523.25, 659.25, 1046.5]; // C5, E5, C6
+    chords.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+      gain.gain.setValueAtTime(0, now + idx * 0.06);
+      gain.gain.linearRampToValueAtTime(0.16, now + idx * 0.06 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.35);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now + idx * 0.06);
+      osc.stop(now + idx * 0.06 + 0.38);
+    });
+  }
 }
 
 window.soundManager = new SoundManager();

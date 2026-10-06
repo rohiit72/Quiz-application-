@@ -40,12 +40,17 @@ class QuizApp {
       skip: true
     };
 
+    // QR Code & Join Room Controller
+    this.qrManager = window.qrManager;
+    this.pendingJoinRoom = null;
+
     // DOM Elements Cache
     this.dom = {};
     this.initDOM();
     this.initSettings();
     this.bindEvents();
     this.renderCategoryGrid();
+    this.checkURLJoinParam();
   }
 
   /* -------------------------------------------------------------
@@ -67,14 +72,19 @@ class QuizApp {
       btnOpenLeaderboard: document.getElementById('btn-open-leaderboard'),
       btnOpenStats: document.getElementById('btn-open-stats'),
       btnOpenCreator: document.getElementById('btn-open-creator'),
+      btnOpenJoin: document.getElementById('btn-open-join'),
 
       // Home Screen
       playerNameInput: document.getElementById('player-name-input'),
+      homeQuickCodeInput: document.getElementById('home-quick-code-input'),
+      btnHomeQuickJoin: document.getElementById('btn-home-quick-join'),
+      btnHomeQuickScan: document.getElementById('btn-home-quick-scan'),
       categoryGrid: document.getElementById('category-grid'),
       difficultyControl: document.getElementById('difficulty-control'),
       countControl: document.getElementById('count-control'),
       btnStartQuiz: document.getElementById('btn-start-quiz'),
       btnStartLabel: document.getElementById('btn-start-label'),
+      btnHostQuiz: document.getElementById('btn-host-quiz'),
 
       // Quiz Screen
       quizCategoryTag: document.getElementById('quiz-category-tag'),
@@ -88,7 +98,7 @@ class QuizApp {
       quizProgressFill: document.getElementById('quiz-progress-fill'),
 
       // Lifelines
-      lifeline5050: document.getElementById('lifeline-5050'),
+      lifeline5050: document.getElementById('lifeline5050'),
       lifelineFreeze: document.getElementById('lifeline-freeze'),
       lifelineHint: document.getElementById('lifeline-hint'),
       lifelineSkip: document.getElementById('lifeline-skip'),
@@ -118,6 +128,7 @@ class QuizApp {
       btnPlayAgain: document.getElementById('btn-play-again'),
       btnToggleReview: document.getElementById('btn-toggle-review'),
       btnShareScore: document.getElementById('btn-share-score'),
+      btnResultsHost: document.getElementById('btn-results-host'),
       reviewSection: document.getElementById('review-section'),
       reviewList: document.getElementById('review-list'),
 
@@ -142,6 +153,51 @@ class QuizApp {
       btnExportQuizJson: document.getElementById('btn-export-quiz-json'),
       btnSaveCustomQuiz: document.getElementById('btn-save-custom-quiz'),
       quizFileInput: document.getElementById('quiz-file-input'),
+
+      // Join Quiz Modal Elements
+      modalJoinQuiz: document.getElementById('modal-join-quiz'),
+      joinModeTabs: document.getElementById('join-mode-tabs'),
+      tabBtnCode: document.getElementById('tab-btn-code'),
+      tabBtnQr: document.getElementById('tab-btn-qr'),
+      panelJoinCode: document.getElementById('panel-join-code'),
+      panelJoinQr: document.getElementById('panel-join-qr'),
+      joinPlayerName: document.getElementById('join-player-name'),
+      joinCodeInput: document.getElementById('join-code-input'),
+      btnSubmitJoinCode: document.getElementById('btn-submit-join-code'),
+      quickDemoChips: document.getElementById('quick-demo-chips'),
+
+      // Scanner Controls & Viewport
+      qrScannerViewport: document.getElementById('qr-scanner-viewport'),
+      qrScannerVideo: document.getElementById('qr-scanner-video'),
+      qrScannerCanvas: document.getElementById('qr-scanner-canvas'),
+      scannerStatusPill: document.getElementById('scanner-status-pill'),
+      btnToggleCamera: document.getElementById('btn-toggle-camera'),
+      btnUploadQr: document.getElementById('btn-upload-qr'),
+      qrFileInput: document.getElementById('qr-file-input'),
+      scannerCameraError: document.getElementById('scanner-camera-error'),
+
+      // Join Preview Card
+      joinPreviewCard: document.getElementById('join-preview-card'),
+      previewRoomTitle: document.getElementById('preview-room-title'),
+      previewRoomCategory: document.getElementById('preview-room-category'),
+      previewRoomDiff: document.getElementById('preview-room-diff'),
+      previewRoomCount: document.getElementById('preview-room-count'),
+      previewRoomHost: document.getElementById('preview-room-host'),
+      btnConfirmStartQuiz: document.getElementById('btn-confirm-start-quiz'),
+      btnCancelPreview: document.getElementById('btn-cancel-preview'),
+
+      // Host Quiz Modal Elements
+      modalHostQuiz: document.getElementById('modal-host-quiz'),
+      hostRoomBadge: document.getElementById('host-room-badge'),
+      hostRoomTitle: document.getElementById('host-room-title'),
+      hostRoomMeta: document.getElementById('host-room-meta'),
+      hostQrHolder: document.getElementById('host-qr-holder'),
+      hostCodeDisplay: document.getElementById('host-code-display'),
+      btnCopyRoomCode: document.getElementById('btn-copy-room-code'),
+      hostShareUrlInput: document.getElementById('host-share-url-input'),
+      btnCopyRoomLink: document.getElementById('btn-copy-room-link'),
+      btnDownloadInviteCard: document.getElementById('btn-download-invite-card'),
+      btnHostLaunchQuiz: document.getElementById('btn-host-launch-quiz'),
 
       // Toasts
       toastContainer: document.getElementById('toast-container')
@@ -219,7 +275,11 @@ class QuizApp {
       btn.addEventListener('click', (e) => {
         const modalId = e.currentTarget.dataset.close;
         if (modalId) {
-          document.getElementById(modalId).classList.remove('open');
+          const modalEl = document.getElementById(modalId);
+          if (modalEl) modalEl.classList.remove('open');
+          if (modalId === 'modal-join-quiz') {
+            this.closeJoinModal();
+          }
         }
       });
     });
@@ -229,9 +289,179 @@ class QuizApp {
       overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
           overlay.classList.remove('open');
+          if (overlay.id === 'modal-join-quiz') {
+            this.closeJoinModal();
+          }
         }
       });
     });
+
+    // QR & Join Code Events
+    if (this.dom.btnOpenJoin) {
+      this.dom.btnOpenJoin.addEventListener('click', () => this.openJoinModal('code'));
+    }
+
+    if (this.dom.btnHomeQuickJoin) {
+      this.dom.btnHomeQuickJoin.addEventListener('click', () => {
+        const val = this.dom.homeQuickCodeInput ? this.dom.homeQuickCodeInput.value.trim() : '';
+        if (!val) {
+          this.openJoinModal('code');
+        } else {
+          this.openJoinModal('code');
+          if (this.dom.joinCodeInput) this.dom.joinCodeInput.value = val.toUpperCase();
+          this.processJoinCodeOrUrl(val);
+        }
+      });
+    }
+
+    if (this.dom.homeQuickCodeInput) {
+      this.dom.homeQuickCodeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.dom.btnHomeQuickJoin.click();
+        }
+      });
+    }
+
+    if (this.dom.btnHomeQuickScan) {
+      this.dom.btnHomeQuickScan.addEventListener('click', () => this.openJoinModal('qr'));
+    }
+
+    if (this.dom.btnHostQuiz) {
+      this.dom.btnHostQuiz.addEventListener('click', () => this.openHostModal());
+    }
+
+    if (this.dom.btnResultsHost) {
+      this.dom.btnResultsHost.addEventListener('click', () => this.openHostModal());
+    }
+
+    // Join Modal Tab switching
+    if (this.dom.tabBtnCode) {
+      this.dom.tabBtnCode.addEventListener('click', () => this.switchJoinTab('code'));
+    }
+    if (this.dom.tabBtnQr) {
+      this.dom.tabBtnQr.addEventListener('click', () => this.switchJoinTab('qr'));
+    }
+
+    // Join Code Submit
+    if (this.dom.btnSubmitJoinCode) {
+      this.dom.btnSubmitJoinCode.addEventListener('click', () => {
+        const code = this.dom.joinCodeInput ? this.dom.joinCodeInput.value.trim() : '';
+        if (!code) {
+          this.showToast('Please enter a Quiz Code or Room PIN', 'warning');
+          return;
+        }
+        this.processJoinCodeOrUrl(code);
+      });
+    }
+
+    if (this.dom.joinCodeInput) {
+      this.dom.joinCodeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.dom.btnSubmitJoinCode.click();
+        }
+      });
+    }
+
+    // Quick demo room chips
+    if (this.dom.quickDemoChips) {
+      this.dom.quickDemoChips.querySelectorAll('.chip-btn').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+          const code = e.currentTarget.dataset.code;
+          if (code) {
+            if (this.dom.joinCodeInput) this.dom.joinCodeInput.value = code;
+            this.processJoinCodeOrUrl(code);
+          }
+        });
+      });
+    }
+
+    // Camera Flip & Image Upload
+    if (this.dom.btnToggleCamera) {
+      this.dom.btnToggleCamera.addEventListener('click', async () => {
+        this.sound.playClick();
+        await this.qrManager.switchCamera(
+          this.dom.qrScannerVideo,
+          this.dom.qrScannerCanvas,
+          (text) => this.handleQRDetected(text),
+          (err) => {
+            if (this.dom.scannerCameraError) this.dom.scannerCameraError.style.display = 'block';
+          }
+        );
+      });
+    }
+
+    if (this.dom.btnUploadQr) {
+      this.dom.btnUploadQr.addEventListener('click', () => {
+        if (this.dom.qrFileInput) this.dom.qrFileInput.click();
+      });
+    }
+
+    if (this.dom.qrFileInput) {
+      this.dom.qrFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          this.showToast('Decoding QR image...', 'info');
+          this.qrManager.scanImageFile(
+            file,
+            (text) => this.handleQRDetected(text),
+            (err) => this.showToast(err.message || 'No QR code found in image', 'warning')
+          );
+        }
+        e.target.value = '';
+      });
+    }
+
+    // Confirmation & Start Quiz from Room
+    if (this.dom.btnConfirmStartQuiz) {
+      this.dom.btnConfirmStartQuiz.addEventListener('click', () => this.confirmJoinAndStart());
+    }
+
+    if (this.dom.btnCancelPreview) {
+      this.dom.btnCancelPreview.addEventListener('click', () => {
+        this.pendingJoinRoom = null;
+        if (this.dom.joinPreviewCard) this.dom.joinPreviewCard.style.display = 'none';
+        this.switchJoinTab('code');
+      });
+    }
+
+    // Host Modal Actions
+    if (this.dom.btnCopyRoomCode) {
+      this.dom.btnCopyRoomCode.addEventListener('click', () => {
+        const code = this.dom.hostCodeDisplay ? this.dom.hostCodeDisplay.textContent : '';
+        this.copyToClipboard(code, `Room Code ${code} copied to clipboard!`);
+      });
+    }
+
+    if (this.dom.btnCopyRoomLink) {
+      this.dom.btnCopyRoomLink.addEventListener('click', () => {
+        const link = this.dom.hostShareUrlInput ? this.dom.hostShareUrlInput.value : '';
+        this.copyToClipboard(link, 'Direct Join link copied to clipboard!');
+      });
+    }
+
+    if (this.dom.btnDownloadInviteCard) {
+      this.dom.btnDownloadInviteCard.addEventListener('click', () => {
+        if (this.activeHostRoom) {
+          this.sound.playClick();
+          this.qrManager.downloadInviteCard(this.activeHostRoom);
+          this.showToast('Generating invite card PNG...', 'info');
+        }
+      });
+    }
+
+    if (this.dom.btnHostLaunchQuiz) {
+      this.dom.btnHostLaunchQuiz.addEventListener('click', () => {
+        if (this.dom.modalHostQuiz) this.dom.modalHostQuiz.classList.remove('open');
+        this.sound.playClick();
+        if (this.activeHostRoom) {
+          this.startQuizWithRoom(this.activeHostRoom);
+        } else {
+          this.startQuiz();
+        }
+      });
+    }
 
     // Player Name Change
     this.dom.playerNameInput.addEventListener('change', (e) => {
@@ -383,10 +613,18 @@ class QuizApp {
       <h3 class="cat-title">All Categories Mixed</h3>
       <p class="cat-desc">Comprehensive gauntlet across programming, science, history, pop culture and general trivia.</p>
       <div class="cat-footer">
-        <span class="cat-action-text">Click to start</span>
+        <button class="cat-qr-btn" type="button" title="Get QR Code & Join PIN for All Categories"><span>📡</span> Host</button>
         <button class="cat-play-btn" type="button">Start Quiz ➔</button>
       </div>
     `;
+    allCard.querySelector('.cat-play-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.selectAndLaunchCategory('all', allCard);
+    });
+    allCard.querySelector('.cat-qr-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openHostModal({ category: 'all' });
+    });
     allCard.addEventListener('click', () => this.selectAndLaunchCategory('all', allCard));
     this.dom.categoryGrid.appendChild(allCard);
 
@@ -406,10 +644,18 @@ class QuizApp {
         <h3 class="cat-title">${cat.name}</h3>
         <p class="cat-desc">${cat.description}</p>
         <div class="cat-footer">
-          <span class="cat-action-text">Click to start</span>
+          <button class="cat-qr-btn" type="button" title="Get QR Code & Join PIN for ${cat.name}"><span>📡</span> Host</button>
           <button class="cat-play-btn" type="button">Start Quiz ➔</button>
         </div>
       `;
+      card.querySelector('.cat-play-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectAndLaunchCategory(cat.id, card);
+      });
+      card.querySelector('.cat-qr-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openHostModal({ category: cat.id });
+      });
       card.addEventListener('click', () => this.selectAndLaunchCategory(cat.id, card));
       this.dom.categoryGrid.appendChild(card);
     });
@@ -430,10 +676,18 @@ class QuizApp {
         <h3 class="cat-title">${cq.title}</h3>
         <p class="cat-desc">${cq.description || 'Custom player-created quiz pack.'}</p>
         <div class="cat-footer">
-          <span class="cat-action-text">Click to start</span>
+          <button class="cat-qr-btn" type="button" title="Get QR Code & Join PIN for this custom quiz"><span>📡</span> Host</button>
           <button class="cat-play-btn" type="button">Start Quiz ➔</button>
         </div>
       `;
+      card.querySelector('.cat-play-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectAndLaunchCategory(`custom_${cq.id}`, card);
+      });
+      card.querySelector('.cat-qr-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openHostModal({ category: `custom_${cq.id}` });
+      });
       card.addEventListener('click', () => this.selectAndLaunchCategory(`custom_${cq.id}`, card));
       this.dom.categoryGrid.appendChild(card);
     });
@@ -1232,6 +1486,312 @@ class QuizApp {
       e.target.value = '';
     };
     reader.readAsText(file);
+  }
+
+  /* -------------------------------------------------------------
+     QR Scanner & Room Join Engine
+     ------------------------------------------------------------- */
+  openJoinModal(defaultTab = 'code') {
+    this.sound.playClick();
+    if (this.dom.joinPlayerName) {
+      this.dom.joinPlayerName.value = this.playerName || 'Challenger';
+    }
+    if (this.dom.joinPreviewCard) {
+      this.dom.joinPreviewCard.style.display = 'none';
+    }
+    this.pendingJoinRoom = null;
+    this.switchJoinTab(defaultTab);
+    if (this.dom.modalJoinQuiz) {
+      this.dom.modalJoinQuiz.classList.add('open');
+    }
+  }
+
+  closeJoinModal() {
+    this.qrManager.stopCamera(this.dom.qrScannerVideo);
+    if (this.dom.modalJoinQuiz) {
+      this.dom.modalJoinQuiz.classList.remove('open');
+    }
+    if (this.dom.joinPreviewCard) {
+      this.dom.joinPreviewCard.style.display = 'none';
+    }
+    this.pendingJoinRoom = null;
+  }
+
+  switchJoinTab(tabName) {
+    if (this.dom.tabBtnCode) this.dom.tabBtnCode.classList.toggle('active', tabName === 'code');
+    if (this.dom.tabBtnQr) this.dom.tabBtnQr.classList.toggle('active', tabName === 'qr');
+
+    if (this.dom.panelJoinCode) this.dom.panelJoinCode.style.display = tabName === 'code' ? 'block' : 'none';
+    if (this.dom.panelJoinQr) this.dom.panelJoinQr.style.display = tabName === 'qr' ? 'block' : 'none';
+
+    if (tabName === 'qr') {
+      this.startQRScanner();
+    } else {
+      this.qrManager.stopCamera(this.dom.qrScannerVideo);
+    }
+  }
+
+  async startQRScanner() {
+    if (!this.dom.qrScannerVideo || !this.dom.qrScannerCanvas) return;
+    if (this.dom.scannerCameraError) this.dom.scannerCameraError.style.display = 'none';
+    if (this.dom.scannerStatusPill) {
+      this.dom.scannerStatusPill.innerHTML = `<span>🎯</span> Point camera at Host QR code`;
+    }
+
+    const success = await this.qrManager.startCamera(
+      this.dom.qrScannerVideo,
+      this.dom.qrScannerCanvas,
+      (scannedText) => this.handleQRDetected(scannedText),
+      (err) => {
+        if (this.dom.scannerCameraError) {
+          this.dom.scannerCameraError.style.display = 'block';
+        }
+        if (this.dom.scannerStatusPill) {
+          this.dom.scannerStatusPill.innerHTML = `<span>⚠️</span> Camera access unavailable`;
+        }
+      }
+    );
+
+    if (!success && this.dom.scannerCameraError) {
+      this.dom.scannerCameraError.style.display = 'block';
+    }
+  }
+
+  handleQRDetected(rawText) {
+    this.showToast('QR Code captured successfully!', 'info');
+    this.processJoinCodeOrUrl(rawText);
+  }
+
+  processJoinCodeOrUrl(input) {
+    const parsed = this.qrManager.parseInput(input);
+    if (!parsed || !parsed.code) {
+      this.showToast('Invalid QR Code or PIN format', 'warning');
+      return;
+    }
+
+    const room = this.qrManager.resolveRoom(parsed, this.categories);
+    if (!room) {
+      this.showToast(`Room code "${parsed.code}" not found. Verify with host.`, 'warning');
+      return;
+    }
+
+    this.pendingJoinRoom = room;
+
+    // Render Preview Confirmation Card
+    if (this.dom.previewRoomTitle) {
+      this.dom.previewRoomTitle.textContent = room.title || 'Assessment Challenge';
+    }
+    if (this.dom.previewRoomCategory) {
+      const catObj = this.categories.find(c => c.id === room.category);
+      this.dom.previewRoomCategory.textContent = room.category === 'all'
+        ? '🌟 Mixed Gauntlet'
+        : (catObj ? `${catObj.icon} ${catObj.name}` : '📦 Custom Quiz');
+    }
+    if (this.dom.previewRoomDiff) {
+      this.dom.previewRoomDiff.textContent = `Difficulty: ${room.difficulty ? room.difficulty.toUpperCase() : 'ALL'}`;
+    }
+    if (this.dom.previewRoomCount) {
+      this.dom.previewRoomCount.textContent = `${room.count || 10} Questions`;
+    }
+    if (this.dom.previewRoomHost) {
+      this.dom.previewRoomHost.textContent = `Host: ${room.hostName || 'Challenger'}`;
+    }
+
+    // Hide input panels, show confirmation preview
+    if (this.dom.panelJoinCode) this.dom.panelJoinCode.style.display = 'none';
+    if (this.dom.panelJoinQr) this.dom.panelJoinQr.style.display = 'none';
+    if (this.dom.joinPreviewCard) this.dom.joinPreviewCard.style.display = 'block';
+
+    this.qrManager.stopCamera(this.dom.qrScannerVideo);
+    this.sound.playClick();
+  }
+
+  confirmJoinAndStart() {
+    if (!this.pendingJoinRoom) return;
+
+    if (this.dom.joinPlayerName) {
+      const newName = this.dom.joinPlayerName.value.trim();
+      if (newName) {
+        this.playerName = newName;
+        if (this.dom.playerNameInput) this.dom.playerNameInput.value = newName;
+        this.storage.saveSettings({ ...this.storage.getSettings(), playerName: newName });
+      }
+    }
+
+    const roomToPlay = this.pendingJoinRoom;
+    this.closeJoinModal();
+    this.startQuizWithRoom(roomToPlay);
+  }
+
+  startQuizWithRoom(room) {
+    this.showToast(`Entering room "${room.title}"...`, 'info');
+    this.sound.playJoinRoom();
+
+    // 1. Gather pool from room
+    let pool = [];
+    if (room.customQuestions && room.customQuestions.length > 0) {
+      pool = [...room.customQuestions];
+    } else if (room.category && room.category.startsWith('custom_')) {
+      const customId = room.category.replace('custom_', '');
+      const customQuiz = this.storage.getCustomQuizzes().find(q => q.id === customId);
+      pool = customQuiz ? [...customQuiz.questions] : [...this.allQuestions];
+    } else if (room.category && room.category !== 'all') {
+      pool = this.allQuestions.filter(q => q.category === room.category);
+    } else {
+      pool = [...this.allQuestions];
+    }
+
+    // 2. Filter by difficulty if specified
+    if (room.difficulty && room.difficulty !== 'all') {
+      const diffFiltered = pool.filter(q => q.difficulty === room.difficulty);
+      if (diffFiltered.length > 0) {
+        pool = diffFiltered;
+      }
+    }
+
+    // 3. Shuffle
+    pool = this.shuffleArray(pool);
+
+    // 4. Slice count
+    const targetCount = room.count || 10;
+    this.activeQuestions = pool.slice(0, Math.min(targetCount, pool.length));
+
+    if (this.activeQuestions.length === 0) {
+      this.activeQuestions = this.allQuestions.slice(0, 10);
+    }
+
+    // Reset Game Session Metrics
+    this.currentIndex = 0;
+    this.score = 0;
+    this.correctCount = 0;
+    this.currentStreak = 0;
+    this.maxStreak = 0;
+    this.userAnswers = [];
+
+    // Reset Lifelines
+    this.lifelines = {
+      fiftyFifty: true,
+      freeze: true,
+      hint: true,
+      skip: true
+    };
+    this.updateLifelinesUI();
+
+    this.dom.currentScore.textContent = '0';
+    this.updateStreakUI();
+
+    // Trigger celebration confetti on join
+    this.confetti.burst(15);
+
+    // Show quiz screen
+    this.showScreen('quiz');
+    this.renderCurrentQuestion();
+    this.startTimer();
+  }
+
+  /* -------------------------------------------------------------
+     Host Quiz & QR Room Generator
+     ------------------------------------------------------------- */
+  openHostModal(options = {}) {
+    this.sound.playClick();
+
+    const category = options.category || this.selectedCategory || 'all';
+    const difficulty = options.difficulty || this.selectedDifficulty || 'all';
+    const count = options.count || this.selectedCount || 10;
+
+    let title = 'Mixed Knowledge Gauntlet';
+    let customQuestions = null;
+
+    if (category.startsWith('custom_')) {
+      const customId = category.replace('custom_', '');
+      const customQuiz = this.storage.getCustomQuizzes().find(q => q.id === customId);
+      if (customQuiz) {
+        title = customQuiz.title;
+        customQuestions = customQuiz.questions;
+      }
+    } else if (category !== 'all') {
+      const catObj = this.categories.find(c => c.id === category);
+      if (catObj) title = `${catObj.name} Challenge`;
+    }
+
+    const hostName = this.playerName || 'Challenger';
+    const prefix = category === 'all' ? 'QZ' : (category.split('_')[0].substring(0, 3).toUpperCase());
+    const code = this.qrManager.generateCode(prefix);
+
+    const roomRecord = {
+      code,
+      title,
+      category,
+      difficulty,
+      count,
+      hostName,
+      customQuestions,
+      createdAt: Date.now()
+    };
+
+    // Save room in local storage
+    this.storage.saveRoom(roomRecord);
+    this.activeHostRoom = roomRecord;
+
+    // Generate Share URL & QR Code
+    const joinUrl = this.qrManager.createJoinURL(roomRecord);
+    const qrSvg = this.qrManager.generateQRSVG(joinUrl, 6, 2);
+
+    // Populate Modal Elements
+    if (this.dom.hostRoomTitle) this.dom.hostRoomTitle.textContent = title;
+    if (this.dom.hostRoomMeta) {
+      this.dom.hostRoomMeta.textContent = `${count} Questions • ${difficulty.toUpperCase()} • Host: ${hostName}`;
+    }
+    if (this.dom.hostQrHolder) this.dom.hostQrHolder.innerHTML = qrSvg;
+    if (this.dom.hostCodeDisplay) this.dom.hostCodeDisplay.textContent = code;
+    if (this.dom.hostShareUrlInput) this.dom.hostShareUrlInput.value = joinUrl;
+
+    if (this.dom.modalHostQuiz) this.dom.modalHostQuiz.classList.add('open');
+  }
+
+  copyToClipboard(text, successMsg = 'Copied to clipboard!') {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showToast(successMsg, 'info');
+      }).catch(() => {
+        this.fallbackCopy(text, successMsg);
+      });
+    } else {
+      this.fallbackCopy(text, successMsg);
+    }
+  }
+
+  fallbackCopy(text, successMsg) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      this.showToast(successMsg, 'info');
+    } catch (e) {
+      this.showToast('Please copy text manually', 'warning');
+    }
+    document.body.removeChild(ta);
+  }
+
+  checkURLJoinParam() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const joinCode = urlParams.get('join') || urlParams.get('code');
+      if (joinCode) {
+        setTimeout(() => {
+          this.openJoinModal('code');
+          if (this.dom.joinCodeInput) this.dom.joinCodeInput.value = joinCode.toUpperCase();
+          this.processJoinCodeOrUrl(window.location.href);
+        }, 350);
+      }
+    } catch (err) {
+      console.warn('Error reading join URL parameters:', err);
+    }
   }
 
   /* -------------------------------------------------------------
